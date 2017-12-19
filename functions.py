@@ -11,14 +11,48 @@ import pypyodbc
 #definitions
 d = {}
 top_10 = []
-p = Bittrex(None, None)
+p = Bittrex(api_key, api_secret)
 #tick = p.get_market_summaries()
 
 #Database access
 cnxn = pypyodbc.connect(dbcall)
 cursor = cnxn.cursor()
 
+def get_orderbook():
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
+	order_book = p.get_market_history('BTC-ETH','BTC')
+	order_book = order_book['result']
+	rates = []
+	quan = []
+	buy_orderbook = []
+	sell_orderbook = []
+	for x in order_book:
+		book_total = x['Total']
+		book_time = x['TimeStamp']
+		book_price = x['Price']
+		book_quan = x['Quantity']
+		book_type = x['OrderType']
+		if x['OrderType'] == 'BUY':
+			#buy_orderbook.append(tuple((('total',book_total),('time',book_time),('price',book_price),('quantity',book_quan))))
+			buy_orderbook.append(tuple((book_total,book_time,book_price,book_quan)))
+		if x['OrderType'] == 'SELL':
+			#sell_orderbook.append(tuple((('total',book_total),('time',book_time),('price',book_price),('quantity',book_quan))))
+			sell_orderbook.append(tuple((book_total,book_time,book_price,book_quan)))
+		string = "INSERT INTO dbo.orderbook VALUES ('%s','%s', '%s', '%s', '%s')"%(book_total, book_time, book_price, book_quan, book_type)
+		cursor.execute(string,)
+		cnxn.commit()
+	cnxn.close()
+	column_headers = ['total','time','price','quantity']
+	df_buy_orderbook = pd.DataFrame(list(buy_orderbook),columns=column_headers)
+	df_sell_orderbook = pd.DataFrame(list(sell_orderbook),columns=column_headers)
+	return df_buy_orderbook#, df_sell_orderbook
+
+
+
 def update_prices():
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
 	tick = p.get_market_summaries()
 	tick = tick['result']
 	#print(tick)
@@ -51,6 +85,8 @@ def update_prices():
 	return ("Archived at: ", time.asctime(time.localtime(time.time())))
 
 def update_price_coin(coin):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
 	tick = p.get_market_summaries()
 	tick = tick['result']
 	for x in tick:
@@ -82,11 +118,22 @@ def update_price_coin(coin):
 	cnxn.close()
 	return ("Added %s"%(coin))
 
-
+def get_coin_data(coin):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
+	coin = coin.replace('-','')
+	column_headers = ['currency','last','bid','ask','volume','openbuyorders','opensellorders','change','date']
+	collection = "SELECT TOP(1) * FROM dbo.%s ORDER BY date DESC"%(coin)
+	latest_row = pd.DataFrame(list(cursor.execute(collection)),columns=column_headers)
+	latest_row['change'] = '{:.10f}'.format(float(latest_row['change']))
+	cnxn.commit()
+	return latest_row
 
 
 
 def get_top10(interval):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
 	collection = "SELECT * FROM sys.Tables"
 	latest_row = pd.DataFrame(list(cursor.execute(collection)))
 	latest_row = latest_row[0]
@@ -118,6 +165,8 @@ def get_top10(interval):
 
 
 def get_bottom10(interval):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
 	collection = "SELECT * FROM sys.Tables"
 	latest_row = pd.DataFrame(list(cursor.execute(collection)))
 	latest_row = latest_row[0]
@@ -148,6 +197,8 @@ def get_bottom10(interval):
 	return bottom_10
 
 def get_coin_perc(coin):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
 	coin = []
 	collection = "SELECT TOP(1) bid FROM dbo.%s ORDER BY date DESC"%(coin)
 	change = pd.DataFrame(list(cursor.execute(collection)))
@@ -158,6 +209,8 @@ def get_coin_perc(coin):
 	return coin
 
 def get_previous_price(coin,interval):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
 	coin = []
 	collection = "SELECT TOP(%s) bid,ask FROM dbo.%s ORDER BY date DESC"%(interval,coin)
 	change = pd.DataFrame(list(cursor.execute(collection)))
