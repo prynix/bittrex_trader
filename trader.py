@@ -35,7 +35,7 @@ pred = custom_term_linear_market(market,1,1)
 
 order_book = bit.get_orderbook('BTC-ETH',BUY_ORDERBOOK)
 
-
+#pls suync
 
 result = get_orderbook()
 avg = sum(result['price'])#/len(result.df_buy_orderbook['price'])
