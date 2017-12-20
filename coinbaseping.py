@@ -3,6 +3,7 @@ import time
 import json
 currency_list = ['SALT','ADA','GNT','XRP','DGB','XVG','POWR','SC','EMC2','QTUM','NXT','NEO','REP','XLM','BTG','XEM','OMG','STRAT','ETC','XMR','MIOTA','DASH','EOS','STR','LSK','ARDR']
 i = 0
+o = 0
 def send_notification(title, body):
     data_send = {"type": "note", "title": title, "body": body}
     ACCESS_TOKEN = 'o.XCnzldVKb5hBRep0wGyfWkA0nVDIMIRq'
@@ -27,3 +28,7 @@ while i == 0:
             string = "COIN %s ON COINBASE, BUY NOW"%(x)
             send_notification("COIN ON COINBASE",string)
     time.sleep(2)
+    o += 1
+    if o % 1000:
+            string = "Script still on fam"
+            send_notification("Script works, praise allah",string)
