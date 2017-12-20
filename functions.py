@@ -1,6 +1,6 @@
 #This is designed to hold the bittrex api functions accessed by the trading folder
 from bittrex import Bittrex
-from config import api_key, api_secret, dbcall
+from config import api_key, api_secret, dbcall, access_token
 from operator import itemgetter
 import pandas as pd
 import time
@@ -17,6 +17,16 @@ p = Bittrex(api_key, api_secret)
 #Database access
 cnxn = pypyodbc.connect(dbcall)
 cursor = cnxn.cursor()
+
+def send_notification(title, body):
+    data_send = {"type": "note", "title": title, "body": body}
+    resp = rq.post('https://api.pushbullet.com/v2/pushes', data=json.dumps(data_send),
+                         headers={'Authorization': 'Bearer ' + access_token, 'Content-Type': 'application/json'})
+    if resp.status_code != 200:
+        raise Exception('Something wrong')
+    else:
+        print('complete sending')
+
 
 def get_orderbook():
 	cnxn = pypyodbc.connect(dbcall)
