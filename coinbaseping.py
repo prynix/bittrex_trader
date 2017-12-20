@@ -32,3 +32,4 @@ while i == 0:
     if o % 50:
             string = "Script still on fam"
             send_notification("Script works, praise allah",string)
+#nohup long-running-command &
