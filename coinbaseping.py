@@ -29,7 +29,7 @@ while i == 0:
             send_notification("COIN ON COINBASE",string)
     time.sleep(2)
     o += 1
-    if o % 50:
+    if o % 100 == 0:
             string = "Script still on fam"
             send_notification("Script works, praise allah",string)
 #nohup long-running-command &
