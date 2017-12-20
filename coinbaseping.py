@@ -29,6 +29,6 @@ while i == 0:
             send_notification("COIN ON COINBASE",string)
     time.sleep(2)
     o += 1
-    if o % 1000:
+    if o % 50:
             string = "Script still on fam"
             send_notification("Script works, praise allah",string)
