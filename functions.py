@@ -19,13 +19,13 @@ cnxn = pypyodbc.connect(dbcall)
 cursor = cnxn.cursor()
 
 def send_notification(title, body):
-    data_send = {"type": "note", "title": title, "body": body}
-    resp = rq.post('https://api.pushbullet.com/v2/pushes', data=json.dumps(data_send),
-                         headers={'Authorization': 'Bearer ' + access_token, 'Content-Type': 'application/json'})
-    if resp.status_code != 200:
-        raise Exception('Something wrong')
-    else:
-        print('complete sending')
+	data_send = {"type": "note", "title": title, "body": body}
+	resp = rq.post('https://api.pushbullet.com/v2/pushes', data=json.dumps(data_send),
+						 headers={'Authorization': 'Bearer ' + access_token, 'Content-Type': 'application/json'})
+	if resp.status_code != 200:
+		raise Exception('Something wrong')
+	else:
+		print('complete sending')
 
 
 def get_orderbook():
@@ -58,15 +58,11 @@ def get_orderbook():
 	df_sell_orderbook = pd.DataFrame(list(sell_orderbook),columns=column_headers)
 	return df_buy_orderbook#, df_sell_orderbook
 
-
-
-def update_prices():
+def update_prices(): #done
 	cnxn = pypyodbc.connect(dbcall)
 	cursor = cnxn.cursor()
 	tick = p.get_market_summaries()
 	tick = tick['result']
-	#print(tick)
-	print("hello from the other side")
 	for x in tick:
 		y = x['MarketName']
 		y = y.replace('-','')
@@ -83,9 +79,15 @@ def update_prices():
 		latest_row = pd.DataFrame(list(cursor.execute(collection)))
 		old = float(latest_row[0])
 		old = '{:.8f}'.format(old)
-		change = ((float(bid)/float(old))-1)*100
+		if bid != old:
+			change = ((float(bid)/float(old))-1)*100
+			change = int(change)
+		else:
+			change = 0
+			change = int(change)
 		date = time.strftime('%Y-%m-%d %H:%M:%S')
 		#Inital table creation script
+		#change = 0
 		#string = "CREATE TABLE %s(currency varchar(10), last decimal(16,8), bid decimal(16,8), ask decimal(16,8), volume decimal(20,8), openbuyorders decimal(16,8), opensellorders  decimal(16,8), change decimal(16,8), date datetime);"%(y)
 		string = "INSERT INTO dbo.%s VALUES ('%s','%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(y, y, last, bid, ask, volume, openbuyorders, opensellorders, change, date)
 		#print(string)
@@ -94,39 +96,60 @@ def update_prices():
 	cnxn.close()
 	return ("Archived at: ", time.asctime(time.localtime(time.time())))
 
-def update_price_coin(coin):
+def create_tables():
 	cnxn = pypyodbc.connect(dbcall)
 	cursor = cnxn.cursor()
 	tick = p.get_market_summaries()
 	tick = tick['result']
 	for x in tick:
-		if x['MarketName'] == coin:
-			y = x['MarketName']
-			y = y.replace('-','')
-			y = str(y)
-			volume = float(x['Volume'])
-			last = float(x['Last'])
-			bid = float(x['Bid'])
-			ask = float(x['Ask'])
-			openbuyorders = float(x['OpenBuyOrders'])
-			opensellorders = float(x['OpenSellOrders'])
-			volume = '{:.8f}'.format(volume)
-			last = '{:.8f}'.format(last)
-			bid = '{:.8f}'.format(bid)
-			ask = '{:.8f}'.format(ask)
-			openbuyorders = '{:.8f}'.format(openbuyorders)
-			opensellorders = '{:.8f}'.format(opensellorders)
-			collection = "SELECT TOP(1) bid FROM dbo.%s ORDER BY date DESC"%(y)
-			latest_row = pd.DataFrame(list(cursor.execute(collection)))
-			old = float(latest_row[0])
-			old = '{:.8f}'.format(old)
-			change = ((float(bid)/float(old))-1)*100
-			date = time.strftime('%Y-%m-%d %H:%M:%S')
-			string = "INSERT INTO dbo.%s VALUES ('%s','%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(y, y, last, bid, ask, volume, openbuyorders, opensellorders, change, date)
-			cursor.execute(string,)
-			cnxn.commit()
+		y = x['MarketName']
+		y = y.replace('-','')
+		string = "CREATE TABLE %s(currency varchar(10), last decimal(16,8), bid decimal(16,8), ask decimal(16,8), volume decimal(20,8), openbuyorders decimal(16,8), opensellorders  decimal(16,8), change decimal(16,8), date datetime);"%(y)
+		cursor.execute(string,)
+		cnxn.commit()
+	for x in tick:
+		y = x['MarketName']
+		y = y.replace('-','')
+		volume = str(x['Volume'])
+		last = float(x['Last'])
+		bid = float(x['Bid'])
+		ask = float(x['Ask'])
+		openbuyorders = str(x['OpenBuyOrders'])
+		opensellorders = str(x['OpenSellOrders'])
+		last = '{:.8f}'.format(last)
+		bid = '{:.8f}'.format(bid)
+		ask = '{:.8f}'.format(ask)
+		old = 0
+		old = int(old)
+		change = 0
+		change = int(change)
+		date = time.strftime('%Y-%m-%d %H:%M:%S')
+		string = "INSERT INTO dbo.%s VALUES ('%s','%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(y, y, last, bid, ask, volume, openbuyorders, opensellorders, change, date)
+		cursor.execute(string,)
+		cnxn.commit()
 	cnxn.close()
-	return ("Added %s"%(coin))
+	return ("Created at: ", time.asctime(time.localtime(time.time())))
+
+
+def getdayaverage(coin,interval):
+	if interval % 1 != 0:
+		return ("Please enter in whole days or enter '0' to get all")
+	if interval % 1 == 0 and interval != 0:
+		column_headers = ['average bid','average ask','average volume','date']
+		collection = "SELECT [bid],[ask],[volume],[date] FROM dbo.%s WHERE [date] <= DATEADD(day,%s, GETDATE()) ORDER BY date DESC"%(coin,interval)
+		latest_row = pd.DataFrame(list(cursor.execute(collection)),columns=column_headers)
+		latest_row = latest_row.drop('date', axis=1).apply(lambda x: x.mean())
+		latest_row = latest_row.rename_axis('%s day average'%(interval))
+		cnxn.commit()
+		return latest_row
+	if interval == 0:
+		column_headers = ['average bid','average ask','average volume','date']
+		collection = "SELECT [bid],[ask],[volume],[date] FROM dbo.%s ORDER BY date DESC"%(coin)
+		latest_row = pd.DataFrame(list(cursor.execute(collection)),columns=column_headers)
+		latest_row = latest_row.drop('date', axis=1).apply(lambda x: x.mean())
+		latest_row = latest_row.rename_axis('9 day average')
+		cnxn.commit()
+		return latest_row
 
 def get_coin_data(coin):
 	cnxn = pypyodbc.connect(dbcall)
@@ -139,8 +162,6 @@ def get_coin_data(coin):
 	cnxn.commit()
 	return latest_row
 
-
-
 def get_top10(interval):
 	cnxn = pypyodbc.connect(dbcall)
 	cursor = cnxn.cursor()
@@ -148,9 +169,9 @@ def get_top10(interval):
 	latest_row = pd.DataFrame(list(cursor.execute(collection)))
 	latest_row = latest_row[0]
 	top_10 = []
-	if interval % 1 <> 0:
+	if interval % 1 != 0:
 		return ("Please enter in whole days or enter '0' to get all")
-	if interval % 1 == 0 & interval <> 0:
+	if interval % 1 == 0 & interval != 0:
 		for w in latest_row:
 			if w != "":
 				collection = "SELECT TOP(1) bid FROM dbo.%s WHERE date > GETDATE()-%s ORDER BY date DESC"%(w, interval)
@@ -173,7 +194,6 @@ def get_top10(interval):
 	cnxn.close()
 	return top_10
 
-
 def get_bottom10(interval):
 	cnxn = pypyodbc.connect(dbcall)
 	cursor = cnxn.cursor()
@@ -181,9 +201,9 @@ def get_bottom10(interval):
 	latest_row = pd.DataFrame(list(cursor.execute(collection)))
 	latest_row = latest_row[0]
 	bottom_10 = []
-	if interval % 1 <> 0:
+	if interval % 1 != 0:
 		return ("Please enter in whole days or enter '0' to get all")
-	if interval % 1 == 0 & interval <> 0:
+	if interval % 1 == 0 & interval != 0:
 		for w in latest_row:
 			if w != "":
 				collection = "SELECT TOP(1) bid FROM dbo.%s WHERE date > GETDATE()-%s ORDER BY date DESC"%(w, interval)
