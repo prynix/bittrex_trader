@@ -6,6 +6,8 @@ import pandas as pd
 import time
 import datetime
 import pypyodbc
+import requests as rq
+import json
 
 
 #definitions
@@ -28,35 +30,29 @@ def send_notification(title, body):
 		print('complete sending')
 
 
-def get_orderbook():
+def get_orderbook(market):
 	cnxn = pypyodbc.connect(dbcall)
 	cursor = cnxn.cursor()
-	order_book = p.get_market_history('BTC-ETH','BTC')
+	order_book = p.get_orderbook(market,'both')
 	order_book = order_book['result']
-	rates = []
-	quan = []
 	buy_orderbook = []
 	sell_orderbook = []
-	for x in order_book:
-		book_total = x['Total']
-		book_time = x['TimeStamp']
-		book_price = x['Price']
-		book_quan = x['Quantity']
-		book_type = x['OrderType']
-		if x['OrderType'] == 'BUY':
-			#buy_orderbook.append(tuple((('total',book_total),('time',book_time),('price',book_price),('quantity',book_quan))))
-			buy_orderbook.append(tuple((book_total,book_time,book_price,book_quan)))
-		if x['OrderType'] == 'SELL':
-			#sell_orderbook.append(tuple((('total',book_total),('time',book_time),('price',book_price),('quantity',book_quan))))
-			sell_orderbook.append(tuple((book_total,book_time,book_price,book_quan)))
-		string = "INSERT INTO dbo.orderbook VALUES ('%s','%s', '%s', '%s', '%s')"%(book_total, book_time, book_price, book_quan, book_type)
-		cursor.execute(string,)
-		cnxn.commit()
-	cnxn.close()
-	column_headers = ['total','time','price','quantity']
-	df_buy_orderbook = pd.DataFrame(list(buy_orderbook),columns=column_headers)
-	df_sell_orderbook = pd.DataFrame(list(sell_orderbook),columns=column_headers)
-	return df_buy_orderbook#, df_sell_orderbook
+	column_headers = ['rate','quantity','total']
+	if order_book['sell']:
+		for item in order_book['sell']:
+			total = float(item['Rate'])*float(item['Quantity'])
+			total = last = '{:.8f}'.format(total)
+			sell_orderbook.append(tuple(((item['Rate']),(item['Quantity']),(total))))
+			df_sell_orderbook = pd.DataFrame(list(sell_orderbook),columns=column_headers)
+	if order_book['buy']:
+		for item in order_book['buy']:
+			total = float(item['Rate'])*float(item['Quantity'])
+			total = last = '{:.8f}'.format(total)
+			buy_orderbook.append(tuple(((item['Rate']),(item['Quantity']),(total))))
+			df_buy_orderbook = pd.DataFrame(list(buy_orderbook),columns=column_headers)
+	df_buy_desc = df_buy_orderbook.describe()
+	df_sell_desc = df_sell_orderbook.describe()
+	return df_buy_orderbook, df_sell_orderbook, df_buy_desc, df_sell_desc
 
 def update_prices(): #done
 	cnxn = pypyodbc.connect(dbcall)
@@ -81,7 +77,7 @@ def update_prices(): #done
 		old = '{:.8f}'.format(old)
 		if bid != old:
 			change = ((float(bid)/float(old))-1)*100
-			change = int(change)
+			change = '{:.8f}'.format(change)
 		else:
 			change = 0
 			change = int(change)
@@ -162,69 +158,25 @@ def get_coin_data(coin):
 	cnxn.commit()
 	return latest_row
 
-def get_top10(interval):
+def getmovers():
 	cnxn = pypyodbc.connect(dbcall)
 	cursor = cnxn.cursor()
 	collection = "SELECT * FROM sys.Tables"
 	latest_row = pd.DataFrame(list(cursor.execute(collection)))
 	latest_row = latest_row[0]
-	top_10 = []
-	if interval % 1 != 0:
-		return ("Please enter in whole days or enter '0' to get all")
-	if interval % 1 == 0 & interval != 0:
-		for w in latest_row:
-			if w != "":
-				collection = "SELECT TOP(1) bid FROM dbo.%s WHERE date > GETDATE()-%s ORDER BY date DESC"%(w, interval)
+	movers = []
+	for w in latest_row:
+		if w != "":
+			if "USDT" not in w:
+				collection = "SELECT TOP(1) change FROM dbo.%s ORDER BY date DESC"%(w)
 				change = pd.DataFrame(list(cursor.execute(collection)))
 				change = float(change[0])
-				top_10.append(tuple((w,change)))
-		top_10.sort(key=itemgetter(1), reverse=True)
-		top_10 = top_10[:10]
-		cnxn.commit()
-	if interval == 0:
-		for w in latest_row:
-			if w != "":
-				collection = "SELECT TOP(1) bid FROM dbo.%s ORDER BY date DESC"%(w)
-				change = pd.DataFrame(list(cursor.execute(collection)))
-				change = float(change[0])
-				top_10.append(tuple((w,change)))
-		top_10.sort(key=itemgetter(1), reverse=True)
-		top_10 = top_10[:10]
-		cnxn.commit()
+				movers.append(tuple((w,change)))
+	movers.sort(key=itemgetter(1), reverse=True)
+	movers = movers[:10]
+	cnxn.commit()
 	cnxn.close()
-	return top_10
-
-def get_bottom10(interval):
-	cnxn = pypyodbc.connect(dbcall)
-	cursor = cnxn.cursor()
-	collection = "SELECT * FROM sys.Tables"
-	latest_row = pd.DataFrame(list(cursor.execute(collection)))
-	latest_row = latest_row[0]
-	bottom_10 = []
-	if interval % 1 != 0:
-		return ("Please enter in whole days or enter '0' to get all")
-	if interval % 1 == 0 & interval != 0:
-		for w in latest_row:
-			if w != "":
-				collection = "SELECT TOP(1) bid FROM dbo.%s WHERE date > GETDATE()-%s ORDER BY date DESC"%(w, interval)
-				change = pd.DataFrame(list(cursor.execute(collection)))
-				change = float(change[0])
-				bottom_10.append(tuple((w,change)))
-		bottom_10.sort(key=itemgetter(1), reverse=True)
-		bottom_10 = top_10[:10]
-		cnxn.commit()
-	if interval == 0:
-		for w in latest_row:
-			if w != "":
-				collection = "SELECT TOP(1) bid FROM dbo.%s ORDER BY date DESC"%(w)
-				change = pd.DataFrame(list(cursor.execute(collection)))
-				change = float(change[0])
-				bottom_10.append(tuple((w,change)))
-		bottom_10.sort(key=itemgetter(1), reverse=False)
-		bottom_10 = top_10[:10]
-		cnxn.commit()
-	cnxn.close()
-	return bottom_10
+	return movers
 
 def get_coin_perc(coin):
 	cnxn = pypyodbc.connect(dbcall)
