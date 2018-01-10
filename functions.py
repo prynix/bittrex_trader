@@ -46,22 +46,23 @@ def get_orderbook(market):
 	df_sell_desc = []
 	df_buy_desc = []
 	column_headers = ['rate','quantity','total']
-	if order_book['sell']:
-		for item in order_book['sell']:
-			total = float(item['Rate'])*float(item['Quantity'])
-			total = '{:.8f}'.format(total)
-			sell_orderbook.append(tuple(((item['Rate']),(item['Quantity']),(total))))
-			df_sell_orderbook = pd.DataFrame(list(sell_orderbook),columns=column_headers)
-			df_sell_orderbook = df_sell_orderbook[['rate','quantity','total']].apply(pd.to_numeric)
-			df_sell_desc = df_sell_orderbook.describe()
-	if order_book['buy']:
-		for item in order_book['buy']:
-			total = float(item['Rate'])*float(item['Quantity'])
-			total = '{:.8f}'.format(total)
-			buy_orderbook.append(tuple(((item['Rate']),(item['Quantity']),(total))))
-			df_buy_orderbook = pd.DataFrame(list(buy_orderbook),columns=column_headers)
-			df_buy_orderbook = df_buy_orderbook[['rate','quantity','total']].apply(pd.to_numeric)
-			df_buy_desc = df_buy_orderbook.describe()
+	if order_book:
+		if order_book['sell']:
+			for item in order_book['sell']:
+				total = float(item['Rate'])*float(item['Quantity'])
+				total = '{:.8f}'.format(total)
+				sell_orderbook.append(tuple(((item['Rate']),(item['Quantity']),(total))))
+				df_sell_orderbook = pd.DataFrame(list(sell_orderbook),columns=column_headers)
+				df_sell_orderbook = df_sell_orderbook[['rate','quantity','total']].apply(pd.to_numeric)
+				df_sell_desc = df_sell_orderbook.describe()
+		if order_book['buy']:
+			for item in order_book['buy']:
+				total = float(item['Rate'])*float(item['Quantity'])
+				total = '{:.8f}'.format(total)
+				buy_orderbook.append(tuple(((item['Rate']),(item['Quantity']),(total))))
+				df_buy_orderbook = pd.DataFrame(list(buy_orderbook),columns=column_headers)
+				df_buy_orderbook = df_buy_orderbook[['rate','quantity','total']].apply(pd.to_numeric)
+				df_buy_desc = df_buy_orderbook.describe()
 	return {'df_buy_orderbook':df_buy_orderbook, 'df_sell_orderbook':df_sell_orderbook, 'df_buy_desc':df_buy_desc, 'df_sell_desc':df_sell_desc}
 
 def makeratios(totalbuys,totalsells):
@@ -250,3 +251,96 @@ def get_previous_price(coin,interval):
 	cnxn.commit()
 	cnxn.close()
 	return coin
+
+def placeorder(coin,amount,price,type,id):
+	cnxn = pypyodbc.connect(dbcall)
+	cursor = cnxn.cursor()
+	tick = p.get_market_summaries()
+	tick = tick['result']
+	if price == 0:
+		for x in tick:
+			if '-' not in coin:
+				if 'BTC' in coin[:4]:
+					coin = coin.replace('BTC','BTC-')
+				if 'ETH' in coin[:4]:
+					coin = coin.replace('ETH','ETH-')
+				if 'USDT' in coin[:4]:
+					coin = coin.replace('USDT','USDT-')
+			if x['MarketName'] == coin:
+				if type == 'sell':
+					ask = float(x['Ask'])
+					ask = '{:.8f}'.format(ask)
+					sell = p.sell_limit(coin,amount,ask)
+					if sell['message'] == 'MIN_TRADE_REQUIREMENT_NOT_MET':
+						return 'Minimum trade amount not met'
+					else:
+						total = float(float(amount)*float(ask))
+						total = '{:.8f}'.format(total)
+						amount = '{:.8f}'.format(float(amount))
+						date = time.strftime('%Y-%m-%d %H:%M:%S')
+						string = "INSERT INTO dbo.trades VALUES ('%s','%s', '%s', '%s', '%s', '%s','%s')"%(id,type,ask,amount,total,sell['success'],date)
+						cursor.execute(string)
+						cnxn.commit()
+						cnxn.close()
+						return 'Sold %s units of %s at %s satoshis'%(amount,coin,ask)
+				if type == 'buy':
+					bid = float(x['Bid'])
+					bid = '{:.8f}'.format(bid)
+					buy = p.buy_limit(coin,amount,bid)
+					if buy['message'] == 'MIN_TRADE_REQUIREMENT_NOT_MET':
+						return 'Minimum trade amount not met'
+					else:
+						total = float(float(amount)*float(bid))
+						total = '{:.8f}'.format(total)
+						amount = '{:.8f}'.format(float(amount))
+						date = time.strftime('%Y-%m-%d %H:%M:%S')
+						string = "INSERT INTO dbo.trades VALUES ('%s','%s', '%s', '%s', '%s', '%s','%s')"%(id,type,bid,amount,total,buy['success'],date)
+						cursor.execute(string)
+						cnxn.commit()
+						cnxn.close()
+						return 'Brought %s units of %s at %s satoshis'%(amount,coin,bid)
+				if type != 'sell' and type != 'buy':
+					return 'Incorrect type parameter'
+	if price != 0:
+			if '-' not in coin:
+				if 'BTC' in coin[:4]:
+					coin = coin.replace('BTC','BTC-')
+				if 'ETH' in coin[:4]:
+					coin = coin.replace('ETH','ETH-')
+				if 'USDT' in coin[:4]:
+					coin = coin.replace('USDT','USDT-')
+			if type == 'sell':
+				ask = float(price)
+				ask = '{:.8f}'.format(ask)
+				sell = p.sell_limit(coin,amount,ask)
+				if sell['message'] == 'MIN_TRADE_REQUIREMENT_NOT_MET':
+					return 'Minimum trade amount not met'
+				else:
+					total = float(float(amount)*float(ask))
+					total = '{:.8f}'.format(total)
+					amount = '{:.8f}'.format(float(amount))
+					date = time.strftime('%Y-%m-%d %H:%M:%S')
+					string = "INSERT INTO dbo.trades VALUES ('%s','%s', '%s', '%s', '%s', '%s','%s')"%(id,type,ask,amount,total,sell['success'],date)
+					cursor.execute(string)
+					cnxn.commit()
+					cnxn.close()
+					return 'Sold %s units of %s at %s satoshis'%(amount,coin,ask)
+			if type == 'buy':
+				bid = float(price)
+				bid = '{:.8f}'.format(bid)
+				buy = p.buy_limit(coin,amount,bid)
+				if buy['message'] == 'MIN_TRADE_REQUIREMENT_NOT_MET':
+					return 'Minimum trade amount not met'
+				else:
+					total = float(float(amount)*float(bid))
+					total = '{:.8f}'.format(total)
+					amount = '{:.8f}'.format(float(amount))
+					date = time.strftime('%Y-%m-%d %H:%M:%S')
+					string = "INSERT INTO dbo.trades VALUES ('%s','%s', '%s', '%s', '%s', '%s','%s')"%(id,type,bid,amount,total,buy['success'],date)
+					cursor.execute(string)
+					cnxn.commit()
+					cnxn.close()
+					return 'Brought %s units of %s at %s satoshis'%(amount,coin,bid)
+			if type != 'sell' and type != 'buy':
+				return 'Incorrect type parameter'
+cnxn.close()

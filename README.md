@@ -1,5 +1,6 @@
 # IN DEVELOPMENT
 Stay tuned for updates.
+10/01/17: All of the buy and sell features are added, as well as order book analysis and updates. Added a system to obtain ratios of open buy and sell orders (to determine when sell offs are happening). Currently working on adding a monitoring webapp, as well as tracking the buy and sell objects with ID's and monitoring them. 
 
 ### Features currently added
 * Getting the orderbook
@@ -13,10 +14,10 @@ Stay tuned for updates.
 
 
 ### Features in Development
-* Get top10 coins from DB (half built)
-* Get bottom10 coins from DB (half built)
+* Get top10 coins from DB #done
+* Get bottom10 coins from DB #done
 * Customer linear order book machine learning
-* Short/mid/long term ML
+* Short/mid/long term ML #done
 * Xgboosted tree
 * Coin prediction weighting
 * Integration with news classifier (in development)
