@@ -37,6 +37,6 @@ golem address: 0xbB613B3B2698f7bb00f15F81F31610289a0afD25 <br />
 litecoin address: LNSt9Mv8ny3j2LkM5NMtkGJDysTiXRQXLS
 
 ## Contact
-[LinkedIn](https://www.linkedin.com/in/jeremiahmannings/) <br />
+[LinkedIn](https://www.linkedin.com/in/ai-specialist-data-science/) <br />
 [Website](www.jmannings.io) <br />
 [Email](mailto:jerry.mannings@gmail.com) <br />
